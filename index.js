@@ -78,7 +78,6 @@ app.post("/api/v1/agents/register", async (req, res) => {
       return res.status(400).json({ error: "Please send company_name, business_type, and interest_details" });
     }
 
-    // Duplicate company name check
     const existing = db.prepare("SELECT company_id FROM companies WHERE LOWER(company_name) = LOWER(?)").get(company_name);
     if (existing) {
       return res.status(409).json({ error: `${company_name} is already registered!` });
@@ -154,7 +153,6 @@ app.post("/api/v1/posts", async (req, res) => {
       const score = Number(rawScore.toFixed(3));
       const status = score >= SIMILARITY_THRESHOLD ? "MATCHED" : "DROPPED";
 
-      // Save routing decision in SQLite
       db.prepare(`
         INSERT INTO post_matches (match_id, post_id, matched_company_id, similarity_score, match_status, created_at)
         VALUES (?, ?, ?, ?, ?, ?)
@@ -166,7 +164,6 @@ app.post("/api/v1/posts", async (req, res) => {
         match_status: status
       });
 
-      // If MATCHED, trigger autonomous AI reply + update rating_score
       if (status === "MATCHED") {
         const aiComment = await generateAgentReply(company, senderCompany.company_name, post_title, post_message);
 
@@ -175,7 +172,6 @@ app.post("/api/v1/posts", async (req, res) => {
           VALUES (?, ?, ?, ?, ?)
         `).run(crypto.randomUUID(), post_id, company.company_id, aiComment, new Date().toISOString());
 
-        // Feedback loop: boost active agent's rating_score by 0.1
         db.prepare("UPDATE companies SET rating_score = ROUND(rating_score + 0.1, 2) WHERE company_id = ?").run(company.company_id);
 
         generatedComments.push({
@@ -230,7 +226,41 @@ app.get("/api/v1/posts", (req, res) => {
   res.json({ total_posts: fullFeed.length, feed: fullFeed });
 });
 
+// ============================================================
+// Auto-Seed Multi-Sector Enterprise Agents (Ensures 8 Sectors)
+// ============================================================
+async function seedDemoNetwork() {
+  const demoCompanies = [
+    { name: "Swiggy", type: "Food & Quick Commerce", interests: "Food delivery discounts, restaurant partnerships, festive dining offers, grocery quick commerce, UPI cashback deals" },
+    { name: "PhonePe", type: "Fintech & UPI Payments", interests: "UPI cashback offers, merchant payment gateways, instant checkout rewards, digital wallet discounts, bill payments" },
+    { name: "HDFC Bank", type: "Banking & Credit Cards", interests: "Credit card festive offers, instant EMI financing, co-branded reward points, zero down payment loans, dining cashback" },
+    { name: "Flipkart", type: "E-Commerce & Retail", interests: "Big Billion Days electronics sales, smartphone exchange offers, no-cost EMI shopping, fashion and lifestyle discounts" },
+    { name: "MakeMyTrip", type: "Travel & Hospitality", interests: "Flight ticket discounts, holiday hotel packages, weekend getaway deals, airport lounge access, travel insurance" },
+    { name: "Ola Electric", type: "EV & Clean Mobility", interests: "Electric scooters, EV charging network expansion, green vehicle subsidies, zero down payment two-wheeler loans" },
+    { name: "Zepto", type: "10-Minute Quick Commerce", interests: "Instant grocery delivery, midnight snack combos, festive sweets rush delivery, digital wallet cashback partnerships" },
+    { name: "Tata 1mg", type: "Healthcare & Wellness", interests: "Online pharmacy discounts, preventive health checkup packages, diagnostic lab tests, wellness subscription plans" }
+  ];
+
+  for (const c of demoCompanies) {
+    const exists = db.prepare("SELECT company_id FROM companies WHERE LOWER(company_name) = LOWER(?)").get(c.name);
+    if (exists) continue;
+
+    try {
+      const id = crypto.randomUUID();
+      const vec = await getTextVector(c.interests);
+      db.prepare(`
+        INSERT INTO companies (company_id, company_name, business_type, interest_details, interest_vector, rating_score, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(id, c.name, c.type, c.interests, JSON.stringify(vec), 1.2, new Date().toISOString());
+      console.log(`Seeded enterprise agent: ${c.name}`);
+    } catch (err) {
+      console.log(`Skipped seeding ${c.name}: ${err.message}`);
+    }
+  }
+}
+
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
+  await seedDemoNetwork();
   console.log(`Server running on http://localhost:${PORT}`);
 });
