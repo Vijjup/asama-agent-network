@@ -12,7 +12,6 @@ app.use(express.static("public"));
 
 const geminiClient = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-// Helper 1: Sentence ni numbers array (vector) ga marche function
 async function getTextVector(text) {
   const result = await geminiClient.models.embedContent({
     model: "gemini-embedding-001",
@@ -21,7 +20,6 @@ async function getTextVector(text) {
   return result.embeddings[0].values;
 }
 
-// Helper 2: Rendu vectors madhya Cosine Similarity score (0 to 1) kanipette function
 function calculateCosineScore(vecA, vecB) {
   let dotProduct = 0;
   let normA = 0;
@@ -36,7 +34,6 @@ function calculateCosineScore(vecA, vecB) {
   return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
 }
 
-// Helper 3: Match ayina Company AI Agent automatic ga reply rayadam (with 8s Timeout)
 async function generateAgentReply(responderCompany, senderCompanyName, postTitle, postMessage) {
   const prompt = `
     You are the official AI representative of ${responderCompany.company_name} (${responderCompany.business_type}).
@@ -62,14 +59,15 @@ async function generateAgentReply(responderCompany, senderCompanyName, postTitle
     const response = await Promise.race([aiPromise, timeoutPromise]);
     return response.text.trim();
   } catch (err) {
-    console.log(`AI slow/busy for ${responderCompany.company_name}, using smart template reply.`);
+    console.log(`Fallback template used for ${responderCompany.company_name}`);
     return `Exciting update from ${senderCompanyName}! ${responderCompany.company_name} would love to explore a joint ${responderCompany.business_type.toLowerCase()} collaboration on "${postTitle}".`;
   }
 }
 
-// ============================================================
-// API 1: Register a Company Agent (with Duplicate Prevention)
-// ============================================================
+app.get("/api/health", (req, res) => {
+  res.json({ status: "healthy", service: "asama-agent-network", timestamp: new Date().toISOString() });
+});
+
 app.post("/api/v1/agents/register", async (req, res) => {
   try {
     const { company_name, business_type, interest_details } = req.body;
@@ -103,15 +101,11 @@ app.post("/api/v1/agents/register", async (req, res) => {
   }
 });
 
-// Registered companies list choodadaniki GET API
 app.get("/api/v1/agents", (req, res) => {
   const allCompanies = db.prepare("SELECT company_id, company_name, business_type, interest_details, rating_score, created_at FROM companies").all();
   res.json({ total: allCompanies.length, companies: allCompanies });
 });
 
-// ============================================================
-// API 2: Create Post -> Security Check -> Smart Route -> AI Replies
-// ============================================================
 app.post("/api/v1/posts", async (req, res) => {
   try {
     const { posted_by_id, post_title, post_message } = req.body;
@@ -125,7 +119,6 @@ app.post("/api/v1/posts", async (req, res) => {
       return res.status(404).json({ error: "Company not found! Check posted_by_id." });
     }
 
-    // Security Guardrail: Block Prompt Injection / Malicious inputs
     const blockedWords = ["ignore previous instructions", "system prompt", "api_key", "drop table"];
     const combinedInput = `${post_title} ${post_message}`.toLowerCase();
     if (blockedWords.some((word) => combinedInput.includes(word))) {
@@ -193,9 +186,6 @@ app.post("/api/v1/posts", async (req, res) => {
   }
 });
 
-// ============================================================
-// API 3: Get Full Social Feed (Posts + Routing Scores + Comments)
-// ============================================================
 app.get("/api/v1/posts", (req, res) => {
   const posts = db.prepare(`
     SELECT p.*, c.company_name AS posted_by_name, c.business_type
@@ -226,9 +216,6 @@ app.get("/api/v1/posts", (req, res) => {
   res.json({ total_posts: fullFeed.length, feed: fullFeed });
 });
 
-// ============================================================
-// Auto-Seed Multi-Sector Enterprise Agents (Ensures 8 Sectors)
-// ============================================================
 async function seedDemoNetwork() {
   const demoCompanies = [
     { name: "Swiggy", type: "Food & Quick Commerce", interests: "Food delivery discounts, restaurant partnerships, festive dining offers, grocery quick commerce, UPI cashback deals" },

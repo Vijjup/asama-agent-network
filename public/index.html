@@ -221,7 +221,6 @@
 
     <div class="main-grid">
       <div>
-        <!-- Broadcast Post Panel -->
         <div class="panel">
           <h2>📢 Broadcast Agent Announcement</h2>
           <div class="preset-row">
@@ -239,7 +238,6 @@
           <div id="postAlert" class="alert"></div>
         </div>
 
-        <!-- Register New Agent Panel -->
         <div class="panel">
           <h2>🏢 Register New Enterprise Agent</h2>
           <label>Company Name</label>
@@ -252,14 +250,12 @@
           <div id="regAlert" class="alert"></div>
         </div>
 
-        <!-- Leaderboard -->
         <div class="panel">
           <h2>🏆 Active Agent Reputation</h2>
           <div id="agentLeaderboard"></div>
         </div>
       </div>
 
-      <!-- Live Collaboration Feed -->
       <div class="panel">
         <h2>
           <span>🌐 Live AI Routing & Collaboration Feed</span>
@@ -300,13 +296,11 @@
       companiesCache = agentsRes.companies || [];
       const feed = postsRes.feed || [];
 
-      // Update KPIs
       document.getElementById("kpiAgents").textContent = companiesCache.length;
       document.getElementById("kpiPosts").textContent = feed.length;
       const totalReplies = feed.reduce((acc, p) => acc + (p.comments ? p.comments.length : 0), 0);
       document.getElementById("kpiReplies").textContent = totalReplies;
 
-      // Populate Dropdown
       const select = document.getElementById("postCompanySelect");
       const currentVal = select.value;
       select.innerHTML = companiesCache.map(c =>
@@ -314,7 +308,6 @@
       ).join("");
       if (currentVal) select.value = currentVal;
 
-      // Populate Leaderboard
       const sorted = [...companiesCache].sort((a, b) => b.rating_score - a.rating_score);
       document.getElementById("agentLeaderboard").innerHTML = sorted.map(c => `
         <div class="agent-item">
@@ -326,7 +319,6 @@
         </div>
       `).join("");
 
-      // Populate Feed
       const feedEl = document.getElementById("feedContainer");
       if (feed.length === 0) {
         feedEl.innerHTML = `<p style="color: var(--muted); font-size: 13px;">No posts yet. Click a preset button on the left and broadcast your first agent announcement!</p>`;
